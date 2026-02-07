@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: task_manager_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: mini_task_manager
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin ping -h localhost -u root -psecret"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: task_manager_app
+    ports:
+      - "8000:8000"
+    environment:
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: mini_task_manager
+      DB_USERNAME: root
+      DB_PASSWORD: secret
+      JWT_SECRET: hv2u0SyrKSk4CyJkUdsX39gdwZ1SlZP8s3eMhQtvUZm3i9N3yJTv3oquiDhugo-U
+      JWT_EXPIRATION: 86400
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  mysql_data:

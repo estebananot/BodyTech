@@ -1,0 +1,99 @@
+
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: task-manager-postgres
+    environment:
+      POSTGRES_DB: mini_task_manager
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - task-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d mini_task_manager"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: task-manager-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=mini_task_manager
+      - DB_USERNAME=root
+      - DB_PASSWORD=secret
+      - JWT_SECRET=hv2u0SyrKSk4CyJkUdsX39gdwZ1SlZP8s3eMhQtvUZm3i9N3yJTv3oquiDhugo-U
+      - JWT_EXPIRATION=86400
+    volumes:
+      - ./backend:/app
+    networks:
+      - task-network
+    depends_on:
+      - postgres
+      - websocket
+    healthcheck:
+      test: ["CMD-SHELL", "php -S localhost:8000 -t public/ -r \"echo 'OK'\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  websocket:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.websocket
+    container_name: task-manager-websocket
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./backend:/app
+    networks:
+      - task-network
+    healthcheck:
+      test: ["CMD-SHELL", "php -r \"echo 'OK'\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: task-manager-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000/api
+      - VITE_WS_URL=ws://localhost:8080
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - task-network
+    depends_on:
+      - backend
+      - websocket
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5173 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  task-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
